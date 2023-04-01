@@ -6,7 +6,7 @@ const arrayIndex = urlParams.get('v1');
 function loadPlaces(position) {
     const method = 'static';
     // const method = 'api';
-    if(method === 'static') {
+    // if(method === 'static') {
         const CLG_PlACES = [
             [{
                 name: "LIBRARY",
@@ -121,44 +121,53 @@ function loadPlaces(position) {
                 }
             }],
         ]; 
-         
-        return Promise.resolve(CLG_PlACES[arrayIndex]);
-    }
-    else if(method === 'api') {
-        //under construction
-    }
-};
 
+         
+         return Promise.resolve(CLG_PlACES[arrayIndex]);
+    // }
+    // else if(method === 'api') {
+    //     const params = {
+    //         radius: 300,    // search places not farther than this value (in meters)
+    //         clientId: '<your-client-id>',
+    //         clientSecret: '<your-client-secret>',
+    //         version: '20300101',    // foursquare versioning, required but unuseful for this demo
+    //     };
+    
+    //     // CORS Proxy to avoid CORS problems
+    //     const corsProxy = 'https://cors-anywhere.herokuapp.com/';
+    
+    //     // Foursquare API (limit param: number of maximum places to fetch)
+    //     const endpoint = `${corsProxy}https://api.foursquare.com/v2/venues/search?intent=checkin
+    //         &ll=${position.latitude},${position.longitude}
+    //         &radius=${params.radius}
+    //         &client_id=${params.clientId}
+    //         &client_secret=${params.clientSecret}
+    //         &limit=30 
+    //         &v=${params.version}`;
+    //     return fetch(endpoint)
+    //         .then((res) => {
+    //             return res.json()
+    //                 .then((resp) => {
+    //                     return resp.response.venues;
+    //                 })
+    //         })
+    //         .catch((err) => {
+    //             console.error('Error with places API', err);
+    //         })
+    // }
+};
 
 window.onload = () => {
     const scene = document.querySelector('a-scene');
-    let destinationCoords = null;
+    const arrowEntity = document.createElement('a-entity');
+    arrowEntity.setAttribute('geometry', 'primitive: cone; height: 2; radiusBottom: 0.1; radiusTop: 0.5;');
+    arrowEntity.setAttribute('material', 'color: red;');
+    arrowEntity.setAttribute('position', '0 -0.5 -2');
+    arrowEntity.setAttribute('rotation', '0 0 0');
+    cameraEntity.appendChild(arrowEntity);
 
     // first get current user location
     return navigator.geolocation.getCurrentPosition(function (position) {
-        
-        function calculateRotation(currentCoords, destinationCoords, alpha) {
-            const q1 = new THREE.Quaternion();
-            const q2 = new THREE.Quaternion();
-            const euler = new THREE.Euler();
-            
-            // get bearing between current position and destination
-            const lat1 = deg2rad(currentCoords.latitude);
-            const lon1 = deg2rad(currentCoords.longitude);
-            const lat2 = deg2rad(destinationCoords.latitude);
-            const lon2 = deg2rad(destinationCoords.longitude);
-            const y = Math.sin(lon2 - lon1) * Math.cos(lat2);
-            const x = Math.cos(lat1) * Math.sin(lat2) -
-                      Math.sin(lat1) * Math.cos(lat2) * Math.cos(lon2 - lon1);
-            const bearing = rad2deg(Math.atan2(y, x));
-            
-            // calculate rotation using quaternion and slerp
-            euler.set(0, deg2rad(-bearing), 0, 'YXZ');
-            q1.setFromEuler(euler);
-            q2.copy(arrowEntity.object3D.quaternion);
-            THREE.Quaternion.slerp(q2, q1, q2, alpha);
-            arrowEntity.object3D.quaternion.copy(q2);
-        }
 
         function getDistance(lat1, lng1, lat2, lng2) {
             const R = 6371; // Radius of the earth in km
@@ -177,15 +186,17 @@ window.onload = () => {
           function deg2rad(deg) {
             return deg * (Math.PI/180)
           }
+          
+          
 
         // than use it to load from remote APIs some places nearby
         loadPlaces(position.coords)
             .then((places) => {
                 places.forEach((place) => {
                     
+                    
                     const desLatitude = place.location.lat;
                     const desLongitude = place.location.lng;   
-                    destinationCoords = {latitude: desLatitude, longitude: desLongitude};
                     alert(`You are ${getDistance(position.coords.latitude, position.coords.longitude, desLatitude, desLongitude)} meters away from your destination ${place.name}. Keep your phone upright and scan around you to find your destination.`);   
                     // console.log(desLatitude, desLongitude)
                     // add place name
@@ -199,33 +210,14 @@ window.onload = () => {
                     });
                     console.log(destinationEntity)
                     scene.appendChild(destinationEntity);
-                    
-                    // Attempt of making arrow through cone                    
-                    const arrowEntity = document.createElement('a-entity');
-                    // arrowEntity.setAttribute('geometry', 'primitive: cone;');
-                    // arrowEntity.setAttribute('material', 'color: red;');
-                    arrowEntity.setAttribute('gltf-model','./assets/arrow.gltf')
-                    arrowEntity.setAttribute('scale', '2 2 2');
-                    arrowEntity.setAttribute('position', '0 -0.9 -10');
-                    arrowEntity.setAttribute('look-at', '[gps-camera]');
-                    arrowEntity.setAttribute('fixed', 'true')
-                    arrowEntity.addEventListener('loaded', () => {
-                        window.dispatchEvent(new CustomEvent('gps-entity-place-loaded'))
-                    });
-                    scene.appendChild(arrowEntity);
-                    console.log(arrowEntity)
 
-                    setInterval(() => {
-                        window.addEventListener('deviceorientation', (event) => {
-                            if (destinationCoords !== null) {
-                                const alpha = event.alpha;
-                                if (alpha !== null) {
-                                    const rotateDegrees = calculateRotation(position.coords, destinationCoords, alpha);
-                                    arrowEntity.setAttribute('rotation', `0 ${rotateDegrees} 0`);
-                                }
-                            }
-                        });
-                    }, 8000);                    
+                    // update arrow direction
+                    const cameraEntity = document.querySelector('[camera]');
+                    const cameraDirection = cameraEntity.getAttribute('rotation');
+                    const targetDirection = getDirectionTowardsTarget(position.coords.latitude, position.coords.longitude, desLatitude, desLongitude);
+                    const rotationAngle = getAngleBetweenDirections(cameraDirection, targetDirection);
+                    arrowEntity.setAttribute('rotation', `0 ${rotationAngle} 0`);
+                    
                 });
             })
         },
@@ -237,3 +229,15 @@ window.onload = () => {
         }
     );
 };
+
+function getDirectionTowardsTarget(lat1, lng1, lat2, lng2) {
+     const dLon = deg2rad(lng2 - lng1);
+    const y = Math.sin(dLon) * Math.cos(deg2rad(lat2));
+     const x =
+    Math.cos(deg2rad(lat1)) * Math.sin(deg2rad(lat2)) -
+    Math.sin(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) * Math.cos(dLon);
+    const brng = rad2deg(Math.atan2(y, x));
+     return (brng + 360) % 360;
+    
+    
+}
