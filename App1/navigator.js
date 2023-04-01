@@ -159,42 +159,21 @@ function loadPlaces(position) {
 
 window.onload = () => {
     const scene = document.querySelector('a-scene');
-    const arrowEntity = document.createElement('a-entity'); // define arrow entity outside of the loadPlaces function
-    
-    function rotateArrow(position, destination) {
-        const arrowPos = arrowEntity.object3D.getWorldPosition(); // get the arrow's world position
-        const dx = destination.lng - position.longitude;
-        const dz = destination.lat - position.latitude;
-        const angle = Math.atan2(dz, dx);
-        arrowEntity.setAttribute('rotation', `0 ${THREE.Math.radToDeg(angle)} 0`); // rotate the arrow towards the destination
-        arrowEntity.setAttribute('position', `${arrowPos.x} 0 ${arrowPos.z}`); // set the arrow's y position to 0
-    
-        // calculate the direction text
-        let direction = '';
-        const bearing = Math.atan2(Math.sin(dx)*Math.cos(destination.lat), Math.cos(position.latitude)*Math.sin(destination.lat) - Math.sin(position.latitude)*Math.cos(destination.lat)*Math.cos(dx));
-        const bearingDegrees = THREE.Math.radToDeg(bearing);
-        if (bearingDegrees >= -45 && bearingDegrees <= 45) {
-            direction = 'Right';
-        } else if (bearingDegrees > 45 && bearingDegrees <= 135) {
-            direction = 'Backward';
-        } else if (bearingDegrees > 135 || bearingDegrees <= -135) {
-            direction = 'Left';
-        } else {
-            direction = 'Forward';
-        }
-    
-        // update the arrow's text
-        const textEntity = document.createElement('a-entity');
-        textEntity.setAttribute('text', `value: ${direction}; align: center;`);
-        textEntity.setAttribute('position', '0 0.5 0'); // move text above arrow
-        textEntity.setAttribute('look-at', '[gps-camera]'); // make text face user
-        arrowEntity.appendChild(textEntity);
-
-    }
-    
+    let destinationCoords = null;
 
     // first get current user location
     return navigator.geolocation.getCurrentPosition(function (position) {
+        
+        function calculateRotation(userCoords, destinationCoords, alpha) {
+            const dLon = destinationCoords.longitude - userCoords.longitude;
+            const y = Math.sin(dLon) * Math.cos(destinationCoords.latitude);
+            const x = Math.cos(userCoords.latitude) * Math.sin(destinationCoords.latitude) - Math.sin(userCoords.latitude) * Math.cos(destinationCoords.latitude) * Math.cos(dLon);
+            let brng = Math.atan2(y, x);
+            brng = (brng * 180) / Math.PI;
+            brng = (brng + 360) % 360;
+            const rotation = (-alpha * 180) / Math.PI;
+            return brng - rotation - 45;
+        }
 
         function getDistance(lat1, lng1, lat2, lng2) {
             const R = 6371; // Radius of the earth in km
@@ -213,17 +192,15 @@ window.onload = () => {
           function deg2rad(deg) {
             return deg * (Math.PI/180)
           }
-          
-          
 
         // than use it to load from remote APIs some places nearby
         loadPlaces(position.coords)
             .then((places) => {
                 places.forEach((place) => {
                     
-                    
                     const desLatitude = place.location.lat;
                     const desLongitude = place.location.lng;   
+                    destinationCoords = {latitude: desLatitude, longitude: desLongitude};
                     alert(`You are ${getDistance(position.coords.latitude, position.coords.longitude, desLatitude, desLongitude)} meters away from your destination ${place.name}. Keep your phone upright and scan around you to find your destination.`);   
                     // console.log(desLatitude, desLongitude)
                     // add place name
@@ -237,14 +214,33 @@ window.onload = () => {
                     });
                     console.log(destinationEntity)
                     scene.appendChild(destinationEntity);
-
-                    // update arrow direction
-                    const cameraEntity = document.querySelector('[camera]');
-                    const cameraDirection = cameraEntity.getAttribute('rotation');
-                    const targetDirection = getDirectionTowardsTarget(position.coords.latitude, position.coords.longitude, desLatitude, desLongitude);
-                    const rotationAngle = getAngleBetweenDirections(cameraDirection, targetDirection);
-                    arrowEntity.setAttribute('rotation', `0 ${rotationAngle} 0`);
                     
+                    // Attempt of making arrow through cone                    
+                    const arrowEntity = document.createElement('a-entity');
+                    // arrowEntity.setAttribute('geometry', 'primitive: cone;');
+                    // arrowEntity.setAttribute('material', 'color: red;');
+                    arrowEntity.setAttribute('gltf-model','./assets/arrow.gltf')
+                    arrowEntity.setAttribute('scale', '2 2 2');
+                    arrowEntity.setAttribute('position', '0 -0.9 -10');
+                    arrowEntity.setAttribute('look-at', '[gps-camera]');
+                    arrowEntity.setAttribute('fixed', 'true')
+                    arrowEntity.addEventListener('loaded', () => {
+                        window.dispatchEvent(new CustomEvent('gps-entity-place-loaded'))
+                    });
+                    scene.appendChild(arrowEntity);
+                    console.log(arrowEntity)
+
+                    setInterval(() => {
+                        window.addEventListener('deviceorientation', (event) => {
+                            if (destinationCoords !== null) {
+                                const alpha = event.alpha;
+                                if (alpha !== null) {
+                                    const rotateDegrees = calculateRotation(position.coords, destinationCoords, alpha);
+                                    arrowEntity.setAttribute('rotation', `0 ${rotateDegrees} 0`);
+                                }
+                            }
+                        });
+                    }, 8000);                    
                 });
             })
         },
@@ -256,16 +252,3 @@ window.onload = () => {
         }
     );
 };
-
-function getDirectionTowardsTarget(lat1, lng1, lat2, lng2) {
-     const dLon = deg2rad(lng2 - lng1);
-    const y = Math.sin(dLon) * Math.cos(deg2rad(lat2));
-     const x =
-    Math.cos(deg2rad(lat1)) * Math.sin(deg2rad(lat2)) -
-    Math.sin(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) * Math.cos(dLon);
-    const brng = rad2deg(Math.atan2(y, x));
-     return (brng + 360) % 360;
-    
-    
-}
-
