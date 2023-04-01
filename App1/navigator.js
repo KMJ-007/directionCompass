@@ -6,7 +6,7 @@ const arrayIndex = urlParams.get('v1');
 function loadPlaces(position) {
     const method = 'static';
     // const method = 'api';
-    // if(method === 'static') {
+    if(method === 'static') {
         const CLG_PlACES = [
             [{
                 name: "LIBRARY",
@@ -121,41 +121,14 @@ function loadPlaces(position) {
                 }
             }],
         ]; 
-
          
-         return Promise.resolve(CLG_PlACES[arrayIndex]);
-    // }
-    // else if(method === 'api') {
-    //     const params = {
-    //         radius: 300,    // search places not farther than this value (in meters)
-    //         clientId: '<your-client-id>',
-    //         clientSecret: '<your-client-secret>',
-    //         version: '20300101',    // foursquare versioning, required but unuseful for this demo
-    //     };
-    
-    //     // CORS Proxy to avoid CORS problems
-    //     const corsProxy = 'https://cors-anywhere.herokuapp.com/';
-    
-    //     // Foursquare API (limit param: number of maximum places to fetch)
-    //     const endpoint = `${corsProxy}https://api.foursquare.com/v2/venues/search?intent=checkin
-    //         &ll=${position.latitude},${position.longitude}
-    //         &radius=${params.radius}
-    //         &client_id=${params.clientId}
-    //         &client_secret=${params.clientSecret}
-    //         &limit=30 
-    //         &v=${params.version}`;
-    //     return fetch(endpoint)
-    //         .then((res) => {
-    //             return res.json()
-    //                 .then((resp) => {
-    //                     return resp.response.venues;
-    //                 })
-    //         })
-    //         .catch((err) => {
-    //             console.error('Error with places API', err);
-    //         })
-    // }
+        return Promise.resolve(CLG_PlACES[arrayIndex]);
+    }
+    else if(method === 'api') {
+        //under construction
+    }
 };
+
 
 window.onload = () => {
     const scene = document.querySelector('a-scene');
@@ -164,15 +137,27 @@ window.onload = () => {
     // first get current user location
     return navigator.geolocation.getCurrentPosition(function (position) {
         
-        function calculateRotation(userCoords, destinationCoords, alpha) {
-            const dLon = destinationCoords.longitude - userCoords.longitude;
-            const y = Math.sin(dLon) * Math.cos(destinationCoords.latitude);
-            const x = Math.cos(userCoords.latitude) * Math.sin(destinationCoords.latitude) - Math.sin(userCoords.latitude) * Math.cos(destinationCoords.latitude) * Math.cos(dLon);
-            let brng = Math.atan2(y, x);
-            brng = (brng * 180) / Math.PI;
-            brng = (brng + 360) % 360;
-            const rotation = (-alpha * 180) / Math.PI;
-            return brng - rotation - 45;
+        function calculateRotation(currentCoords, destinationCoords, alpha) {
+            const q1 = new THREE.Quaternion();
+            const q2 = new THREE.Quaternion();
+            const euler = new THREE.Euler();
+            
+            // get bearing between current position and destination
+            const lat1 = deg2rad(currentCoords.latitude);
+            const lon1 = deg2rad(currentCoords.longitude);
+            const lat2 = deg2rad(destinationCoords.latitude);
+            const lon2 = deg2rad(destinationCoords.longitude);
+            const y = Math.sin(lon2 - lon1) * Math.cos(lat2);
+            const x = Math.cos(lat1) * Math.sin(lat2) -
+                      Math.sin(lat1) * Math.cos(lat2) * Math.cos(lon2 - lon1);
+            const bearing = rad2deg(Math.atan2(y, x));
+            
+            // calculate rotation using quaternion and slerp
+            euler.set(0, deg2rad(-bearing), 0, 'YXZ');
+            q1.setFromEuler(euler);
+            q2.copy(arrowEntity.object3D.quaternion);
+            THREE.Quaternion.slerp(q2, q1, q2, alpha);
+            arrowEntity.object3D.quaternion.copy(q2);
         }
 
         function getDistance(lat1, lng1, lat2, lng2) {
