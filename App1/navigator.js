@@ -202,8 +202,6 @@ window.onload = () => {
                     
                     // Attempt of making arrow through cone                    
                     const arrowEntity = document.createElement('a-entity');
-                    // arrowEntity.setAttribute('geometry', 'primitive: cone;');
-                    // arrowEntity.setAttribute('material', 'color: red;');
                     arrowEntity.setAttribute('gltf-model','./assets/arrow.gltf')
                     arrowEntity.setAttribute('scale', '2 2 2');
                     arrowEntity.setAttribute('position', '0 -0.9 -10');
