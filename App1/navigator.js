@@ -208,21 +208,24 @@ window.onload = () => {
             const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); 
             const d = R * c; // Distance in km
             return Math.round(d*1000);
-        }
+          }
           
-        function deg2rad(deg) {
+          function deg2rad(deg) {
             return deg * (Math.PI/180)
-        }
+          }
           
+          
+
         // than use it to load from remote APIs some places nearby
         loadPlaces(position.coords)
             .then((places) => {
                 places.forEach((place) => {
+                    
+                    
                     const desLatitude = place.location.lat;
                     const desLongitude = place.location.lng;   
-                    const distance = getDistance(position.coords.latitude, position.coords.longitude, desLatitude, desLongitude);
-                    alert(`You are ${distance} meters away from your destination ${place.name}. Keep your phone upright and scan around you to find your destination.`);   
-                    
+                    alert(`You are ${getDistance(position.coords.latitude, position.coords.longitude, desLatitude, desLongitude)} meters away from your destination ${place.name}. Keep your phone upright and scan around you to find your destination.`);   
+                    // console.log(desLatitude, desLongitude)
                     // add place name
                     const destinationEntity = document.createElement('a-link');
                     destinationEntity.setAttribute('gps-entity-place', `latitude: ${desLatitude}; longitude: ${desLongitude};`);
@@ -232,24 +235,37 @@ window.onload = () => {
                     destinationEntity.addEventListener('loaded', () => {
                         window.dispatchEvent(new CustomEvent('gps-entity-place-loaded'))
                     });
+                    console.log(destinationEntity)
                     scene.appendChild(destinationEntity);
-                    
-                    // Attempt of making arrow through cone
-                    arrowEntity.setAttribute('gltf-model', './assets/arrow.gltf');
-                    arrowEntity.setAttribute('scale', '0.5 0.5 0.5'); 
-                    arrowEntity.setAttribute('look-at', `[gps-camera]`);
-                    arrowEntity.setAttribute('fixed', 'true');
-                    arrowEntity.setAttribute('position', '0 0 -1');
-                    arrowEntity.setAttribute('style', 'position : fixed');
-                    scene.appendChild(arrowEntity);
 
-                    // Call rotateArrow function every 1000ms to update the arrow's rotation and position
-                    setInterval(() => {
-                        navigator.geolocation.getCurrentPosition(function (newPosition) {
-                            rotateArrow(newPosition.coords, { lat: desLatitude, lng: desLongitude });
-                        });
-                    }, 1000);
+                    // update arrow direction
+                    const cameraEntity = document.querySelector('[camera]');
+                    const cameraDirection = cameraEntity.getAttribute('rotation');
+                    const targetDirection = getDirectionTowardsTarget(position.coords.latitude, position.coords.longitude, desLatitude, desLongitude);
+                    const rotationAngle = getAngleBetweenDirections(cameraDirection, targetDirection);
+                    arrowEntity.setAttribute('rotation', `0 ${rotationAngle} 0`);
+                    
                 });
-            });
-    });
+            })
+        },
+        (err) => console.error('Error in retrieving position', err),
+        {
+            enableHighAccuracy: true,
+            maximumAge: 0,
+            timeout: 27000,
+        }
+    );
 };
+
+function getDirectionTowardsTarget(lat1, lng1, lat2, lng2) {
+     const dLon = deg2rad(lng2 - lng1);
+    const y = Math.sin(dLon) * Math.cos(deg2rad(lat2));
+     const x =
+    Math.cos(deg2rad(lat1)) * Math.sin(deg2rad(lat2)) -
+    Math.sin(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) * Math.cos(dLon);
+    const brng = rad2deg(Math.atan2(y, x));
+     return (brng + 360) % 360;
+    
+    
+}
+
